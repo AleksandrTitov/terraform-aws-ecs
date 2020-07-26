@@ -53,8 +53,8 @@ resource "aws_autoscaling_group" "ecs_autoscaling_group" {
   desired_capacity          = var.asg_desired_capacity
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  /*To enable managed termination protection for a capacity provider,
-  the Auto Scaling group must have instance protection from scale in enabled.*/
+  /* To enable managed termination protection for a capacity provider,
+  the Auto Scaling group must have instance protection from scale in enabled. */
   protect_from_scale_in     = true
 
   launch_template {
@@ -62,7 +62,14 @@ resource "aws_autoscaling_group" "ecs_autoscaling_group" {
     version = aws_launch_template.ecs_launch_template.latest_version
   }
 
-  vpc_zone_identifier       = var.vpc_subnet
+  tag {
+    /* ECS Capacity Providers automatically adding the AmazonECSManaged tag.
+    Github issue https://github.com/terraform-providers/terraform-provider-aws/issues/12582 */
+    key                 = "AmazonECSManaged"
+    propagate_at_launch = true
+    value               = ""
+  }
+  vpc_zone_identifier       = var.vpc_subnets
 }
 
 
@@ -82,16 +89,16 @@ resource "aws_launch_template" "ecs_launch_template" {
   }
 
   user_data = base64encode(
-    /*
-    ECS Agent configuration   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-agent-config.html
-    User Data by cloud-init   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html#user-data-cloud-init
-    cloud-init docs           https://cloudinit.readthedocs.io/en/latest/index.html
-    */
-    templatefile(
-      "${path.module}/data/user_data.yaml",{
-        ecs_cluster_name = var.ecs_cluster_name
-      }
-    )
+  /*
+  ECS Agent configuration   https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-agent-config.html
+  User Data by cloud-init   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html#user-data-cloud-init
+  cloud-init docs           https://cloudinit.readthedocs.io/en/latest/index.html
+  */
+  templatefile(
+  "${path.module}/data/user_data.yaml",{
+    ecs_cluster_name = var.ecs_cluster_name
+  }
+  )
   )
 
   network_interfaces {
@@ -101,7 +108,7 @@ resource "aws_launch_template" "ecs_launch_template" {
     delete_on_termination       = true
   }
 
-  instance_type           = "t3.small"
+  instance_type           = var.instance_type
 
   iam_instance_profile {
     name = var.ecs_ec2_role
@@ -129,4 +136,17 @@ data "aws_ami" "ecs_ami" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
+
+
+#
+# Application Load Balancer
+resource "aws_lb" "ecs_alb" {
+  name               = format("%s-%s", var.ecs_cluster_name, "alb")
+  internal           = true
+  load_balancer_type = "application"
+  security_groups    = []
+  subnets            = var.vpc_subnets
+
+  //enable_deletion_protection = true
 }

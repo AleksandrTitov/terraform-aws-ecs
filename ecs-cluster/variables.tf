@@ -7,8 +7,8 @@ variable "ecs_cluster_name" {
 
 #
 # VPC configuration
-variable "vpc_subnet" {
-  description = "A list of subnet IDs to launch resources in"
+variable "vpc_subnets" {
+  description = "A list of subnet IDs, at least two subnets in two different Availability Zones must be specified"
   type        = list(string)
 }
 
