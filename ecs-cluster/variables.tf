@@ -59,3 +59,13 @@ variable "asg_desired_capacity" {
   description = "The number of Amazon EC2 instances that should be running in the group"
   default     = 1
 }
+
+variable "capacity_provider_fargate" {
+  description = "Enable of ECS capacity provider Fargate"
+  default     = "true"
+}
+
+variable "capacity_provider_ec2" {
+  description = "Enable of ECS capacity provider EC2"
+  default     = "false"
+}
