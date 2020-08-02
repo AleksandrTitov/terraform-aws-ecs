@@ -2,22 +2,23 @@
 # ECS Cluster
 resource "aws_ecs_cluster" "ecs_cluster" {
   name = var.ecs_cluster_name
-  default_capacity_provider_strategy {
-    capacity_provider = aws_ecs_capacity_provider.ecs_cluster_capacity.name
-  }
-  capacity_providers  = [
-    aws_ecs_capacity_provider.ecs_cluster_capacity.name
-  ]
+
+  capacity_providers  = concat(
+  var.capacity_provider_ec2     == "true" ? [aws_ecs_capacity_provider.ecs_cluster_capacity.0.name] : [],
+  var.capacity_provider_fargate == "true" ? ["FARGATE"] : []
+  )
 }
 
 
 #
 # ECS Capacity provider
 resource "aws_ecs_capacity_provider" "ecs_cluster_capacity" {
-  name = format("%s-%s-%s", var.ecs_cluster_name, "cluster-capacity", random_string.capacity_provider_postfix.result)
+  count = var.capacity_provider_ec2 == "true" ? 1 : 0
+
+  name = format("%s-%s-%s", var.ecs_cluster_name, "cluster-capacity", random_string.capacity_provider_postfix.0.result)
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn         = aws_autoscaling_group.ecs_autoscaling_group.arn
+    auto_scaling_group_arn         = aws_autoscaling_group.ecs_autoscaling_group.0.arn
     managed_termination_protection = "ENABLED"
 
     managed_scaling {
@@ -35,6 +36,8 @@ resource "aws_ecs_capacity_provider" "ecs_cluster_capacity" {
  https://www.terraform.io/docs/providers/aws/r/ecs_capacity_provider.html
 */
 resource "random_string" "capacity_provider_postfix" {
+  count = var.capacity_provider_ec2 == "true" ? 1 : 0
+
   length  = 5
   special = false
   upper   = false
@@ -43,6 +46,8 @@ resource "random_string" "capacity_provider_postfix" {
 #
 # Autoscaling group
 resource "aws_autoscaling_group" "ecs_autoscaling_group" {
+  count = var.capacity_provider_ec2 == "true" ? 1 : 0
+
   lifecycle {
     create_before_destroy = true
   }
@@ -58,8 +63,8 @@ resource "aws_autoscaling_group" "ecs_autoscaling_group" {
   protect_from_scale_in     = true
 
   launch_template {
-    id      = aws_launch_template.ecs_launch_template.id
-    version = aws_launch_template.ecs_launch_template.latest_version
+    id      = aws_launch_template.ecs_launch_template.0.id
+    version = aws_launch_template.ecs_launch_template.0.latest_version
   }
 
   tag {
@@ -76,6 +81,7 @@ resource "aws_autoscaling_group" "ecs_autoscaling_group" {
 #
 # Launch template
 resource "aws_launch_template" "ecs_launch_template" {
+  count = var.capacity_provider_ec2 == "true" ? 1 : 0
 
   name          = format("%s-%s", var.ecs_cluster_name, "launch-template")
   image_id      = data.aws_ami.ecs_ami.image_id
@@ -104,10 +110,12 @@ resource "aws_launch_template" "ecs_launch_template" {
   network_interfaces {
     device_index                = 0
     associate_public_ip_address = false
-    security_groups             = [aws_security_group.ecs_security_group.id]
+    security_groups             = [aws_security_group.ec2_security_group.0.id]
     delete_on_termination       = true
   }
 
+  #TODO: remove a key, for now, it's for a test purposes
+  key_name                = "atitov"
   instance_type           = var.instance_type
 
   iam_instance_profile {
@@ -119,6 +127,7 @@ resource "aws_launch_template" "ecs_launch_template" {
 #
 # Get the latest AWS ECS optimized AMI
 data "aws_ami" "ecs_ami" {
+
   most_recent = true
   owners      = ["amazon"]
 
@@ -142,10 +151,10 @@ data "aws_ami" "ecs_ami" {
 #
 # Application Load Balancer
 resource "aws_lb" "ecs_alb" {
-  name               = format("%s-%s", var.ecs_cluster_name, "alb")
+  name               = format("%s-%s", var.ecs_cluster_name, "ecs-alb")
   internal           = true
   load_balancer_type = "application"
-  security_groups    = []
+  security_groups    = [aws_security_group.alb_security_group.id]
   subnets            = var.vpc_subnets
 
   //enable_deletion_protection = true
