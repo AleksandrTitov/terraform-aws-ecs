@@ -1,0 +1,11 @@
+ecs_cluster_name     = "ecs-test"
+vpc_subnets          = ["subnet-1", "subnet-2"]
+vpc_id               = "vpc-id"
+region               = "eu-west-1"
+instance_type        = "t3.medium"
+ports_ingress        = []
+volume_size          = 30
+ecs_ec2_role         = "testECSInstanceRole"
+asg_desired_capacity = 0
+asg_max_size         = 2
+asg_min_size         = 0
